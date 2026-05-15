@@ -3,7 +3,7 @@ from telebot import TeleBot
 
 # Укажите токен,
 # который вы получили от @Botfather при создании бот-аккаунта:
-bot = TeleBot(token='7882286658:AAElPHlUjZ61h4XZWOMn1gHQlkJbdpWXs_8')
+bot = TeleBot(token='')
 
 '''Часть с LLM'''
 from langchain_ollama import ChatOllama
