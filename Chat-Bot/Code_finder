@@ -1,0 +1,96 @@
+def code_density(text):
+    lines = text.splitlines()
+
+    code_like = 0
+
+    for line in lines:
+        if re.search(r"[{}();=]|def |class |import ", line):
+            code_like += 1
+
+    return code_like / max(len(lines), 1)
+density > 0.3
+
+
+2 variant:
+
+import re
+
+def contains_large_code(text, max_code_length=50):
+    """
+    Проверяет, содержит ли текст код длиной больше max_code_length.
+    
+    Возвращает:
+    (True, code_fragment)  -> если найден большой код
+    (False, None)          -> если кода нет или он маленький
+    """
+
+    # -----------------------------
+    # 1. Поиск markdown code blocks
+    # -----------------------------
+    code_blocks = re.findall(r"```(?:\w+)?\n(.*?)```", text, re.DOTALL)
+
+    for block in code_blocks:
+        cleaned = block.strip()
+
+        if len(cleaned) > max_code_length:
+            return True, cleaned
+
+    # ----------------------------------------
+    # 2. Поиск "обычного" кода без markdown
+    # ----------------------------------------
+
+    code_patterns = [
+        r"\bdef\b",
+        r"\bclass\b",
+        r"\breturn\b",
+        r"\bimport\b",
+        r"\bfor\b.+:",
+        r"\bwhile\b.+:",
+        r"\bif\b.+:",
+        r"\bprint\s*\(",
+        r"\{.*\}",
+        r";",
+        r"=\s*.+",
+    ]
+
+    lines = text.splitlines()
+
+    suspected_code = []
+
+    for line in lines:
+        score = 0
+
+        for pattern in code_patterns:
+            if re.search(pattern, line):
+                score += 1
+
+        # Если строка похожа на код
+        if score >= 2:
+            suspected_code.append(line)
+
+    merged_code = "\n".join(suspected_code).strip()
+
+    if len(merged_code) > max_code_length:
+        return True, merged_code
+
+    return False, None
+
+
+USAGE:
+response = llm_answer
+
+blocked, code = contains_large_code(response)
+
+if blocked:
+    print("Обнаружен слишком большой код")
+    
+    # отправляем во вторую LLM
+    safe_answer = second_llm(response)
+
+else:
+    print("Ответ безопасен")
+    safe_answer = response
+
+
+if code_lines >= 10:
+    block
