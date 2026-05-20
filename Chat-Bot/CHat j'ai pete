@@ -1,0 +1,290 @@
+from ddgs import DDGS
+
+from langchain_ollama import ChatOllama
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage
+)
+
+# =========================
+# LLM MODELS
+# =========================
+
+llm_main = ChatOllama(
+    model="llama3.1",
+    base_url="http://localhost:11434",
+    temperature=0,
+    num_predict=300
+)
+
+llm_small = ChatOllama(
+    model="llama3.2",
+    base_url="http://localhost:11434",
+    temperature=0,
+    num_predict=300
+)
+
+# =========================
+# SYSTEM PROMPTS
+# =========================
+
+BASE_SYSTEM_PROMPT = [
+    SystemMessage(
+        content="""
+You are a helpful assistant for university students.
+
+Your task:
+- help students understand theory and logic
+- DO NOT provide direct code
+- DO NOT solve tasks completely
+- give hints and explanations instead
+
+If user asks theoretical question — answer normally.
+
+If user asks for programming help:
+BAD:
+"Here is the code ..."
+
+GOOD:
+"You may consider using loops, conditions and functions."
+
+Your answers should:
+- be short
+- clear
+- contain no code
+"""
+    )
+]
+
+REFORMULATION_PROMPT = [
+    SystemMessage(
+        content="""
+Ты получаешь вопрос студента.
+
+Твоя задача:
+- переформулировать вопрос
+- убрать просьбы написать готовое решение
+- заменить "напиши" на "объясни"
+- заменить "сделай" на "опиши"
+
+НЕ отвечай на вопрос.
+НЕ пиши код.
+"""
+    )
+]
+
+SUPERVISOR_PROMPT = [
+    SystemMessage(
+        content="""
+You are a supervisor model.
+
+Your task:
+- detect code
+- detect direct solutions
+- remove them
+
+If there is code:
+convert it into advice and explanation.
+
+NEVER return code.
+
+Example:
+BAD:
+"use this code: for i in range..."
+
+GOOD:
+"You should probably use a loop."
+
+Keep answers under 1000 symbols.
+"""
+    )
+]
+
+# =========================
+# SEARCH FUNCTION
+# =========================
+
+def duckduckgo_search(query, max_results=3):
+    try:
+        results = []
+
+        with DDGS() as ddgs:
+            for r in ddgs.text(query, max_results=max_results):
+                results.append({
+                    "title": r.get("title", ""),
+                    "snippet": r.get("body", ""),
+                    "link": r.get("href", "")
+                })
+
+        formatted = "\n\n".join([
+            f"{i+1}. {r['title']}\n{r['snippet']}"
+            for i, r in enumerate(results)
+        ])
+
+        return formatted
+
+    except Exception as e:
+        return f"Search error: {str(e)}"
+
+# =========================
+# QUESTION REFORMULATION
+# =========================
+
+def reformulate_question(user_input):
+
+    messages = REFORMULATION_PROMPT.copy()
+
+    messages.append(HumanMessage(content=user_input))
+
+    response = llm_small.invoke(messages)
+
+    return response.content
+
+# =========================
+# MAIN RAG RESPONSE
+# =========================
+
+def generate_answer(question, web_info):
+
+    prompt = f"""
+Student question:
+{question}
+
+Web search results:
+{web_info}
+
+Instructions:
+- answer only using provided information
+- do not invent facts
+- explain in simple words
+- do not write code
+- help student understand the topic
+"""
+
+    messages = BASE_SYSTEM_PROMPT.copy()
+
+    messages.append(HumanMessage(content=prompt))
+
+    response = llm_main.invoke(messages)
+
+    return response.content
+
+# =========================
+# SUPERVISOR CHECK
+# =========================
+
+def supervisor_check(answer):
+
+    messages = SUPERVISOR_PROMPT.copy()
+
+    messages.append(HumanMessage(content=answer))
+
+    response = llm_small.invoke(messages)
+
+    return response.content
+
+# =========================
+# CODE DETECTION
+# =========================
+
+def contains_code(text):
+
+    code_patterns = [
+        "```",
+        "def ",
+        "class ",
+        "import ",
+        "for ",
+        "while ",
+        "=",
+        "{",
+        "}",
+        "print("
+    ]
+
+    for pattern in code_patterns:
+        if pattern in text:
+            return True
+
+    return False
+
+# =========================
+# MAIN CHAT LOOP
+# =========================
+
+def main():
+
+    print("AI Tutor started.")
+    print("Type 'bye' to exit.\n")
+
+    conversation_history = []
+
+    while True:
+
+        user_input = input("You: ")
+
+        if user_input.lower() == "bye":
+            print("Goodbye!")
+            break
+
+        # =========================
+        # STEP 1: REFORMULATE
+        # =========================
+
+        reformulated = reformulate_question(user_input)
+
+        print("\n[REFORMULATED QUESTION]")
+        print(reformulated)
+
+        # =========================
+        # STEP 2: WEB SEARCH
+        # =========================
+
+        web_data = duckduckgo_search(reformulated)
+
+        print("\n[WEB SEARCH RESULTS]")
+        print(web_data)
+
+        # =========================
+        # STEP 3: GENERATE ANSWER
+        # =========================
+
+        answer = generate_answer(reformulated, web_data)
+
+        # =========================
+        # STEP 4: SUPERVISOR
+        # =========================
+
+        if contains_code(answer):
+
+            print("\n[SUPERVISOR ACTIVATED]")
+
+            answer = supervisor_check(answer)
+
+        # =========================
+        # STEP 5: SAVE HISTORY
+        # =========================
+
+        conversation_history.append(
+            HumanMessage(content=user_input)
+        )
+
+        conversation_history.append(
+            AIMessage(content=answer)
+        )
+
+        # =========================
+        # FINAL OUTPUT
+        # =========================
+
+        print("\nAI:")
+        print(answer)
+        print()
+
+# =========================
+# START
+# =========================
+
+if __name__ == "__main__":
+    main()
