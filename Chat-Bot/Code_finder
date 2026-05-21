@@ -4,18 +4,18 @@ def code_density(text):
     code_like = 0
 
     for line in lines:
-        if re.search(r"[{}();=]|def |class |import ", line):
+        if re.search(r"[{}();=+-]|def |class |import|print|if|range| ", line):
             code_like += 1
 
     return code_like / max(len(lines), 1)
-density > 0.3
+density > 0.5
 
 
 2 variant:
 
 import re
 
-def contains_large_code(text, max_code_length=50):
+def contains_large_code(text, max_code_lines=11):
     """
     Проверяет, содержит ли текст код длиной больше max_code_length.
     
@@ -30,9 +30,9 @@ def contains_large_code(text, max_code_length=50):
     code_blocks = re.findall(r"```(?:\w+)?\n(.*?)```", text, re.DOTALL)
 
     for block in code_blocks:
-        cleaned = block.strip()
+        cleaned = block.splitlines()
 
-        if len(cleaned) > max_code_length:
+        if len(cleaned) > max_code_lines:
             return True, cleaned
 
     # ----------------------------------------
@@ -70,7 +70,7 @@ def contains_large_code(text, max_code_length=50):
 
     merged_code = "\n".join(suspected_code).strip()
 
-    if len(merged_code) > max_code_length:
+    if len(suspected_code) > max_code_lines:
         return True, merged_code
 
     return False, None
