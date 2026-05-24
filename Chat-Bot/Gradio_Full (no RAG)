@@ -1,0 +1,96 @@
+
+import gradio as gr
+
+Friend_mode = "Ты - лучший друг студента. Твоя задача как друга помогать во всем, приветливо и спокойно общаться и давать советы по учебе. Можно использовать сленг и простые слова, шутить и говорить про учебу. Но нельзя давать ответы к заданиям и готовые решения задач. "
+Teacher_mode = "Ты - строгий преподаватель. Твоя задача учить студентов разным предметам: ты даешь методы решения задач, советы и пошаговые инструкции. Но ты никогда не дашь прямого ответа на их вопрос: не давай готовые решения или код. Если..."
+
+
+#учебный бот (без помощи по психологии и т.д.)
+# -----------------------------
+# YOUR EXISTING FUNCTIONS
+# -----------------------------
+
+def search(query):
+    return f"[Internet search results for: {query}]"
+
+
+def rag_search(query):
+    return f"[RAG results for: {query}]"
+
+
+# -----------------------------
+# MAIN CHAT FUNCTION
+# -----------------------------
+
+def main_loop(message, history, internet_mode, rag_mode, style_mode):
+
+    context = ""
+
+    # INTERNET SEARCH
+    if internet_mode:
+        internet_info = search(message)
+        context += f"\n{internet_info}"
+
+    # RAG SEARCH
+    if rag_mode:
+        rag_info = rag_search(message)
+        context += f"\n{rag_info}"
+
+    # STYLE MODES
+    if style_mode == "Friendly":
+        answer = f"Hey! Here's what I found:\n{context}"
+
+    elif style_mode == "Professional":
+        answer = f"Professional response:\n{context}"
+
+    elif style_mode == "Short":
+        answer = f"Short answer:\n{context[:100]}"
+
+    else:
+        answer = f"Default response:\n{context}"
+
+    return answer
+
+
+# -----------------------------
+# GRADIO UI
+# -----------------------------
+
+with gr.Blocks() as demo:
+
+    gr.Markdown("Лучший чат-бот")
+
+    # ON/OFF INTERNET SEARCH
+    internet_toggle = gr.Checkbox(
+        value=False,
+        label="Веб-поиск"
+    )
+
+    # ON/OFF RAG
+    rag_toggle = gr.Checkbox(
+        value=False,
+        label="RAG Mode"
+    )
+
+    # TEXT STYLE
+    style_selector = gr.Radio(
+        choices=[
+            "Друг-сокурсник",
+            "Строгий преподаватель",
+            "Дружелюбный помощник-тьютор"
+        ],
+        value="Дружелюбный помощник-тьютор",
+        label="Стиль чат-бота"
+    )
+
+    # CHAT INTERFACE
+    chatbot = gr.ChatInterface(
+        fn=main_loop,
+        additional_inputs=[
+            internet_toggle,
+            rag_toggle,
+            style_selector
+        ]
+    )
+
+demo.launch(share=True,)
